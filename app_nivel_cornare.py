@@ -46,10 +46,13 @@ def obtener_serie_nivel(codigo_estacion, desde, hasta, calidad=1, timeout=30):
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=timeout, verify=False)
         if resp.status_code == 200:
-            return resp.json(), None
-        return None, f"HTTP {resp.status_code}"
-    except requests.exceptions.RequestException as e:
-        return None, f"Error de red: {e}"
+    if resp.text.strip() == "":
+        return None, "La API devolvió una respuesta vacía."
+    try:
+        return resp.json(), None
+    except ValueError:
+        return None, "La respuesta no tiene formato JSON válido."
+
 
 
 def obtener_todas_las_paginas(datos_json, timeout=30):
