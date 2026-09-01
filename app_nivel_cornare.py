@@ -13,6 +13,9 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import urllib3
+from datetime import timedelta
+
+
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -24,7 +27,7 @@ LAT_DEFECTO = 6.542
 LON_DEFECTO = -75.1576
 
 API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
-
+URL : /api/v1/estaciones/42/?format=api
 LLAVE_FECHA = "level_date"
 LLAVE_VALOR = "level"
 CANDIDATOS_LAT = ["lat", "latitude", "latitud"]
@@ -66,7 +69,33 @@ def obtener_todas_las_paginas(datos_json, timeout=30):
         registros.extend(pagina.get("values", []))
         siguiente_url = pagina.get("next")
     return registros
+    
+# --- Nueva función para obtener serie de un mes antes ---
+def obtener_serie_mes_anterior(codigo_estacion, fecha_desde, fecha_hasta, calidad=1, timeout=30):
+  
+    fecha_desde_dt = pd.to_datetime(fecha_desde)
+    fecha_hasta_dt = pd.to_datetime(fecha_hasta)
 
+    # Restar un mes (30 días aprox)
+    fecha_desde_ant = (fecha_desde_dt - timedelta(days=30)).strftime("%Y-%m-%d")
+    fecha_hasta_ant = (fecha_hasta_dt - timedelta(days=30)).strftime("%Y-%m-%d")
+
+    # Consultar API
+    datos_ant, error_ant = obtener_serie_nivel(codigo_estacion, fecha_desde_ant, fecha_hasta_ant, calidad, timeout)
+    if error_ant:
+        return None, error_ant
+
+    registros_ant = obtener_todas_las_paginas(datos_ant)
+    if not registros_ant:
+        return None, "No hay registros para el mes anterior."
+
+    df_ant = pd.DataFrame(registros_ant)
+    df_ant = df_ant.rename(columns={LLAVE_FECHA: "fecha", LLAVE_VALOR: "nivel"})
+    df_ant["fecha"] = pd.to_datetime(df_ant["fecha"], errors="coerce")
+    df_ant["nivel"] = pd.to_numeric(df_ant["nivel"], errors="coerce")
+    df_ant = df_ant.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
+
+    return df_ant, None
 
 def detectar_coordenadas(datos_json):
     """Busca lat/lon en las llaves raíz de la respuesta. Si no las encuentra, usa el valor por defecto."""
@@ -128,6 +157,29 @@ st.caption(f"Estudiante: **{nombre_estudiante}** · Estación: **{codigo_estacio
 # Consulta y procesamiento
 # ------------------------------------------------------------------
 if consultar:
+    # --- Gráfico de comparación ---
+st.subheader("Comparación con un mes antes")
+
+df_ant, error_ant = obtener_serie_mes_anterior(codigo_estacion, fecha_desde, fecha_hasta, calidad)
+if error_ant:
+    st.warning(f"⚠️ {error_ant}")
+else:
+    # Unir ambas series con etiquetas
+    df_actual = df.copy()
+    df_actual["serie"] = "Actual"
+    df_ant["serie"] = "Mes anterior"
+
+    df_comp = pd.concat([df_actual, df_ant])
+
+    # Pivot para graficar ambas series
+    df_plot = df_comp.pivot(index="fecha", columns="serie", values="nivel")
+    st.line_chart(df_plot)
+
+    # --- Métricas comparativas ---
+    colA, colB = st.columns(2)
+    colA.metric("Promedio actual", f"{df_actual['nivel'].mean():.2f}")
+    colB.metric("Promedio mes anterior", f"{df_ant['nivel'].mean():.2f}")
+
     with st.spinner("Consultando la API..."):
         datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
 
@@ -160,10 +212,19 @@ if consultar:
             st.line_chart(df.set_index("fecha")["nivel"])
 
             # --- Mapa de la estación ---
-            st.subheader("Ubicación de la estación")
-            if not coords_reales:
-                st.caption("La API no trajo latitud/longitud de la estación — se muestra el punto de partida (Pascual Bravo). Ajusta `CANDIDATOS_LAT` / `CANDIDATOS_LON` si conoces el nombre real de esas llaves.")
-            st.map(pd.DataFrame({"lat": [lat], "lon": [lon]}), zoom=10)
+           # --- Mapa de la estación ---
+st.subheader("Ubicación de la estación")
+
+if coords_reales:
+    st.caption(f"Latitud/longitud de la estación {codigo_estacion}: "
+               f"({lat:.4f}, {lon:.4f})")
+else:
+    st.caption(f"La API no trajo latitud/longitud para la estación {codigo_estacion}. "
+               f"Se muestran valores por defecto: ({LAT_DEFECTO}, {LON_DEFECTO}). "
+               "Si conoces las llaves reales, ajusta `CANDIDATOS_LAT` / `CANDIDATOS_LON`.")
+
+st.map(pd.DataFrame({"lat": [lat], "lon": [lon]}), zoom=10)
+
 
             # --- Detalle de calidad ---
             with st.expander("Detalle del índice de calidad"):
