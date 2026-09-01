@@ -157,29 +157,7 @@ st.caption(f"Estudiante: **{nombre_estudiante}** · Estación: **{codigo_estacio
 # Consulta y procesamiento
 # ------------------------------------------------------------------
 if consultar:
-    # --- Gráfico de comparación ---
-st.subheader("Comparación con un mes antes")
-
-df_ant, error_ant = obtener_serie_mes_anterior(codigo_estacion, fecha_desde, fecha_hasta, calidad)
-if error_ant:
-    st.warning(f"⚠️ {error_ant}")
-else:
-    # Unir ambas series con etiquetas
-    df_actual = df.copy()
-    df_actual["serie"] = "Actual"
-    df_ant["serie"] = "Mes anterior"
-
-    df_comp = pd.concat([df_actual, df_ant])
-
-    # Pivot para graficar ambas series
-    df_plot = df_comp.pivot(index="fecha", columns="serie", values="nivel")
-    st.line_chart(df_plot)
-
-    # --- Métricas comparativas ---
-    colA, colB = st.columns(2)
-    colA.metric("Promedio actual", f"{df_actual['nivel'].mean():.2f}")
-    colB.metric("Promedio mes anterior", f"{df_ant['nivel'].mean():.2f}")
-
+ 
     with st.spinner("Consultando la API..."):
         datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
 
@@ -196,6 +174,29 @@ else:
             df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
             df["nivel"] = pd.to_numeric(df["nivel"], errors="coerce")
             df = df.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
+               # --- Gráfico de comparación ---
+            st.subheader("Comparación con un mes antes")
+            
+            df_ant, error_ant = obtener_serie_mes_anterior(codigo_estacion, fecha_desde, fecha_hasta, calidad)
+            if error_ant:
+                st.warning(f"⚠️ {error_ant}")
+            else:
+                # Unir ambas series con etiquetas
+                df_actual = df.copy()
+                df_actual["serie"] = "Actual"
+                df_ant["serie"] = "Mes anterior"
+            
+                df_comp = pd.concat([df_actual, df_ant])
+            
+                # Pivot para graficar ambas series
+                df_plot = df_comp.pivot(index="fecha", columns="serie", values="nivel")
+                st.line_chart(df_plot)
+            
+                # --- Métricas comparativas ---
+                colA, colB = st.columns(2)
+                colA.metric("Promedio actual", f"{df_actual['nivel'].mean():.2f}")
+                colB.metric("Promedio mes anterior", f"{df_ant['nivel'].mean():.2f}")
+
 
             lat, lon, coords_reales = detectar_coordenadas(datos_crudos)
             indice_calidad, huecos, n_outliers = calcular_indice_calidad(df)
