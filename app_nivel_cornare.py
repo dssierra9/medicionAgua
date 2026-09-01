@@ -20,10 +20,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Coordenadas por defecto (Institución Universitaria Pascual Bravo)
 # Se usan solo si la API no trae la latitud/longitud de la estación.
 # ------------------------------------------------------------------
-LAT_DEFECTO = 6.2766
-LON_DEFECTO = -75.5901
+LAT_DEFECTO = 6.542
+LON_DEFECTO = -75.1576
 
-API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
+API_BASE_URL = "https://marco.cornare.gov.co/geoportal/42"
 
 LLAVE_FECHA = "level_date"
 LLAVE_VALOR = "level"
@@ -114,7 +114,7 @@ def calcular_indice_calidad(df):
 # Sidebar — parámetros de la consulta (editables por cada estudiante)
 # ------------------------------------------------------------------
 st.sidebar.header("Parámetros de tu consulta")
-nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "Tu Nombre Aquí")
+nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "David Santiago Sierra")
 codigo_estacion = st.sidebar.text_input("Código de estación", "42")
 fecha_desde = st.sidebar.date_input("Desde", pd.to_datetime("2026-08-23")).strftime("%Y-%m-%d")
 fecha_hasta = st.sidebar.date_input("Hasta", pd.to_datetime("2026-08-30")).strftime("%Y-%m-%d")
