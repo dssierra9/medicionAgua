@@ -27,7 +27,7 @@ LAT_DEFECTO = 6.542
 LON_DEFECTO = -75.1576
 
 API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
-URL : /api/v1/estaciones/42/?format=api
+
 LLAVE_FECHA = "level_date"
 LLAVE_VALOR = "level"
 CANDIDATOS_LAT = ["lat", "latitude", "latitud"]
