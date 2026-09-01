@@ -23,7 +23,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 LAT_DEFECTO = 6.542
 LON_DEFECTO = -75.1576
 
-API_BASE_URL = "https://marco.cornare.gov.co/geoportal/42"
+API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
 
 LLAVE_FECHA = "level_date"
 LLAVE_VALOR = "level"
