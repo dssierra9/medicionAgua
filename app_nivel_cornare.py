@@ -178,7 +178,7 @@ if consultar:
             st.subheader("Comparación con un mes antes")
             
             df_ant, error_ant = obtener_serie_mes_anterior(codigo_estacion, fecha_desde, fecha_hasta, calidad)
-            if error_ant:
+            if error_ant: 
                 st.warning(f"⚠️ {error_ant}")
             else:
                 # Unir ambas series con etiquetas
@@ -213,20 +213,6 @@ if consultar:
             st.line_chart(df.set_index("fecha")["nivel"])
 
             # --- Mapa de la estación ---
-           # --- Mapa de la estación ---
-st.subheader("Ubicación de la estación")
-
-if coords_reales:
-    st.caption(f"Latitud/longitud de la estación {codigo_estacion}: "
-               f"({lat:.4f}, {lon:.4f})")
-else:
-    st.caption(f"La API no trajo latitud/longitud para la estación {codigo_estacion}. "
-               f"Se muestran valores por defecto: ({LAT_DEFECTO}, {LON_DEFECTO}). "
-               "Si conoces las llaves reales, ajusta `CANDIDATOS_LAT` / `CANDIDATOS_LON`.")
-
-st.map(pd.DataFrame({"lat": [lat], "lon": [lon]}), zoom=10)
-
-
             # --- Detalle de calidad ---
             with st.expander("Detalle del índice de calidad"):
                 st.write(f"- Huecos de reporte detectados: **{huecos}**")
@@ -241,3 +227,6 @@ st.map(pd.DataFrame({"lat": [lat], "lon": [lon]}), zoom=10)
             st.download_button("⬇️ Descargar CSV", csv, file_name=f"nivel_estacion_{codigo_estacion}.csv", mime="text/csv")
 else:
     st.info("Ajusta los parámetros en el sidebar y presiona **Consultar**.")
+
+
+           
