@@ -20,17 +20,17 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Coordenadas por defecto (Institución Universitaria Pascual Bravo)
 # Se usan solo si la API no trae la latitud/longitud de la estación.
 # ------------------------------------------------------------------
-LAT_DEFECTO = 6.542
-LON_DEFECTO = -75.1576
+LAT_DEFECTO = 6.2766
+LON_DEFECTO = -75.5901
 
-API_BASE_URL = "https://marco.cornare.gov.co/geoportal/42"
+API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
 
 LLAVE_FECHA = "level_date"
 LLAVE_VALOR = "level"
 CANDIDATOS_LAT = ["lat", "latitude", "latitud"]
 CANDIDATOS_LON = ["lng", "lon", "longitude", "longitud"]
 
-st.set_page_config(page_title="Santo Domingo, Quebrada Santiago  (Red Agua - Cód. 42)", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="Nivel de estación — CORNARE", page_icon="🌊", layout="wide")
 
 
 # ------------------------------------------------------------------
@@ -46,13 +46,10 @@ def obtener_serie_nivel(codigo_estacion, desde, hasta, calidad=1, timeout=30):
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=timeout, verify=False)
         if resp.status_code == 200:
-    if resp.text.strip() == "":
-        return None, "La API devolvió una respuesta vacía."
-    try:
-        return resp.json(), None
-    except ValueError:
-        return None, "La respuesta no tiene formato JSON válido."
-
+            return resp.json(), None
+        return None, f"HTTP {resp.status_code}"
+    except requests.exceptions.RequestException as e:
+        return None, f"Error de red: {e}"
 
 
 def obtener_todas_las_paginas(datos_json, timeout=30):
@@ -117,7 +114,7 @@ def calcular_indice_calidad(df):
 # Sidebar — parámetros de la consulta (editables por cada estudiante)
 # ------------------------------------------------------------------
 st.sidebar.header("Parámetros de tu consulta")
-nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "David Santiago Sierra")
+nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "Tu Nombre Aquí")
 codigo_estacion = st.sidebar.text_input("Código de estación", "42")
 fecha_desde = st.sidebar.date_input("Desde", pd.to_datetime("2026-08-23")).strftime("%Y-%m-%d")
 fecha_hasta = st.sidebar.date_input("Hasta", pd.to_datetime("2026-08-30")).strftime("%Y-%m-%d")
