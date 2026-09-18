@@ -84,5 +84,68 @@ st.caption(f"Estudiante: **{nombre_estudiante}** · Estación fija: **{codigo_es
 # ------------------------------------------------------------------
 # Consulta y Dashboard rotativo
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Consulta y Dashboard rotativo
+# ------------------------------------------------------------------
 if consultar:
-    datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta
+    datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
+    if error:
+        st.error(f"❌ {error}")
+    else:
+        registros = obtener_todas_las_paginas(datos_crudos)
+        if not registros:
+            st.warning("No hay registros para este rango de fechas.")
+        else:
+            df = pd.DataFrame(registros)
+            df = df.rename(columns={LLAVE_FECHA: "fecha", LLAVE_VALOR: "nivel"})
+            df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+            df["nivel"] = pd.to_numeric(df["nivel"], errors="coerce")
+            df = df.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
+
+            indice_calidad, huecos, n_outliers = calcular_indice_calidad(df)
+
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Métricas", "📈 Gráficas", "📉 Comparativa", "🗺️ Mapa"])
+
+            with tab1:
+                st.subheader("Métricas principales")
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Lecturas", len(df))
+                col2.metric("Nivel promedio", f"{df['nivel'].mean():.2f}")
+                col3.metric("Índice de calidad", f"{indice_calidad} / 100")
+                col4.metric("Outliers detectados", n_outliers)
+
+            with tab2:
+                st.subheader("Serie de nivel")
+                tipo_grafico = st.radio("Tipo de gráfico", ["Línea", "Barras", "Área"], horizontal=True)
+                if tipo_grafico == "Línea":
+                    st.line_chart(df.set_index("fecha")["nivel"])
+                elif tipo_grafico == "Barras":
+                    st.bar_chart(df[["fecha","nivel"]].set_index("fecha"))
+                else:
+                    st.area_chart(df.set_index("fecha")["nivel"])
+
+            with tab3:
+                st.subheader("Comparativa por día")
+                df["fecha_dia"] = df["fecha"].dt.date
+                tabla_comparativa = df.groupby("fecha_dia")["nivel"].agg(["mean","max","min"])
+                st.dataframe(tabla_comparativa, use_container_width=True)
+
+                # Boxplot diario
+                fig, ax = plt.subplots(figsize=(8,4))
+                df.boxplot(column="nivel", by="fecha_dia", ax=ax, rot=90)
+                ax.set_title("Variabilidad diaria de niveles")
+                ax.set_ylabel("Nivel")
+                st.pyplot(fig)
+
+            with tab4:
+                st.subheader("Ubicación de la estación")
+                st.map(pd.DataFrame({"lat": [LAT_FIJO], "lon": [LON_FIJO]}), zoom=10)
+                st.caption(f"Latitud: {LAT_FIJO}, Longitud: {LON_FIJO}")
+
+                st.subheader("Datos crudos")
+                st.dataframe(df, use_container_width=True)
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("⬇️ Descargar CSV", csv, file_name=f"nivel_estacion_{codigo_estacion}.csv", mime="text/csv")
+else:
+    st.info("Ajusta las fechas en el sidebar y presiona **Consultar**.")
+
