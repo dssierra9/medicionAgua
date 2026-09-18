@@ -103,13 +103,22 @@ if consultar:
 
             tab1, tab2, tab3, tab4 = st.tabs(["📊 Métricas", "📈 Gráfica de línea", "📉 Cuartiles", "🗺️ Mapa"])
 
-            with tab1:
-                st.subheader("Métricas principales")
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Lecturas", len(df))
-                col2.metric("Nivel promedio", f"{df['nivel'].mean():.2f}")
-                col3.metric("Índice de calidad", f"{indice_calidad} / 100")
-                col4.metric("Outliers detectados", n_outliers)
+          with tab1:
+    st.subheader("Métricas principales")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Lecturas", len(df))
+    col2.metric("Nivel promedio", f"{df['nivel'].mean():.2f}")
+    col3.metric("Índice de calidad", f"{indice_calidad} / 100")
+    col4.metric("Outliers detectados", n_outliers)
+
+    # --- Gráfico de métricas ---
+    st.subheader("Visualización de métricas")
+    metricas_df = pd.DataFrame({
+        "Métrica": ["Lecturas", "Nivel promedio", "Índice de calidad", "Outliers"],
+        "Valor": [len(df), df["nivel"].mean(), indice_calidad, n_outliers]
+    })
+    st.bar_chart(metricas_df.set_index("Métrica"))
+
 
             with tab2:
                 st.subheader("Serie de nivel (línea)")
