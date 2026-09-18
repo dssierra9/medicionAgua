@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import urllib3
-import matplotlib.pyplot as plt
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -82,10 +81,7 @@ st.title("🌊 Santo Domingo, Quebrada Santiago  (Red Agua - Cód. 42)")
 st.caption(f"Estudiante: **{nombre_estudiante}** · Estación fija: **{codigo_estacion}**")
 
 # ------------------------------------------------------------------
-# Consulta y Dashboard rotativo
-# ------------------------------------------------------------------
-# ------------------------------------------------------------------
-# Consulta y Dashboard rotativo
+# Consulta y Dashboard simplificado
 # ------------------------------------------------------------------
 if consultar:
     datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
@@ -104,7 +100,7 @@ if consultar:
 
             indice_calidad, huecos, n_outliers = calcular_indice_calidad(df)
 
-            tab1, tab2, tab3, tab4 = st.tabs(["📊 Métricas", "📈 Gráficas", "📉 Comparativa", "🗺️ Mapa"])
+            tab1, tab2, tab3 = st.tabs(["📊 Métricas", "📈 Gráfica de línea", "🗺️ Mapa"])
 
             with tab1:
                 st.subheader("Métricas principales")
@@ -115,29 +111,10 @@ if consultar:
                 col4.metric("Outliers detectados", n_outliers)
 
             with tab2:
-                st.subheader("Serie de nivel")
-                tipo_grafico = st.radio("Tipo de gráfico", ["Línea", "Barras", "Área"], horizontal=True)
-                if tipo_grafico == "Línea":
-                    st.line_chart(df.set_index("fecha")["nivel"])
-                elif tipo_grafico == "Barras":
-                    st.bar_chart(df[["fecha","nivel"]].set_index("fecha"))
-                else:
-                    st.area_chart(df.set_index("fecha")["nivel"])
+                st.subheader("Serie de nivel (línea)")
+                st.line_chart(df.set_index("fecha")["nivel"])
 
             with tab3:
-                st.subheader("Comparativa por día")
-                df["fecha_dia"] = df["fecha"].dt.date
-                tabla_comparativa = df.groupby("fecha_dia")["nivel"].agg(["mean","max","min"])
-                st.dataframe(tabla_comparativa, use_container_width=True)
-
-                # Boxplot diario
-                fig, ax = plt.subplots(figsize=(8,4))
-                df.boxplot(column="nivel", by="fecha_dia", ax=ax, rot=90)
-                ax.set_title("Variabilidad diaria de niveles")
-                ax.set_ylabel("Nivel")
-                st.pyplot(fig)
-
-            with tab4:
                 st.subheader("Ubicación de la estación")
                 st.map(pd.DataFrame({"lat": [LAT_FIJO], "lon": [LON_FIJO]}), zoom=10)
                 st.caption(f"Latitud: {LAT_FIJO}, Longitud: {LON_FIJO}")
@@ -148,4 +125,3 @@ if consultar:
                 st.download_button("⬇️ Descargar CSV", csv, file_name=f"nivel_estacion_{codigo_estacion}.csv", mime="text/csv")
 else:
     st.info("Ajusta las fechas en el sidebar y presiona **Consultar**.")
-
