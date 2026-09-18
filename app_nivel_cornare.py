@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import urllib3
+import matplotlib.pyplot as plt
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -81,7 +82,7 @@ st.title("🌊 Santo Domingo, Quebrada Santiago  (Red Agua - Cód. 42)")
 st.caption(f"Estudiante: **{nombre_estudiante}** · Estación fija: **{codigo_estacion}**")
 
 # ------------------------------------------------------------------
-# Consulta y Dashboard simplificado
+# Consulta y Dashboard
 # ------------------------------------------------------------------
 if consultar:
     datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
@@ -100,7 +101,7 @@ if consultar:
 
             indice_calidad, huecos, n_outliers = calcular_indice_calidad(df)
 
-            tab1, tab2, tab3 = st.tabs(["📊 Métricas", "📈 Gráfica de línea", "🗺️ Mapa"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Métricas", "📈 Gráfica de línea", "📉 Cuartiles", "🗺️ Mapa"])
 
             with tab1:
                 st.subheader("Métricas principales")
@@ -115,6 +116,15 @@ if consultar:
                 st.line_chart(df.set_index("fecha")["nivel"])
 
             with tab3:
+                st.subheader("Distribución y cuartiles")
+                df["fecha_dia"] = df["fecha"].dt.date
+                fig, ax = plt.subplots(figsize=(8,4))
+                df.boxplot(column="nivel", by="fecha_dia", ax=ax, rot=90)
+                ax.set_title("Variabilidad diaria de niveles (cuartiles)")
+                ax.set_ylabel("Nivel")
+                st.pyplot(fig)
+
+            with tab4:
                 st.subheader("Ubicación de la estación")
                 st.map(pd.DataFrame({"lat": [LAT_FIJO], "lon": [LON_FIJO]}), zoom=10)
                 st.caption(f"Latitud: {LAT_FIJO}, Longitud: {LON_FIJO}")
