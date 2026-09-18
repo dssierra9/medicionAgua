@@ -1,11 +1,6 @@
 """
-App básica de Streamlit — Nivel de ríos/quebradas (CORNARE / MARCO)
---------------------------------------------------------------------
-Cada estudiante debe cambiar, como mínimo, el código de la estación
-en el sidebar. Los valores de fecha y calidad también son ajustables.
-
-Para correrla:
-    streamlit run app_nivel_cornare.py
+App Streamlit — Nivel de ríos/quebradas (CORNARE / MARCO)
+Sensor fijo: 42
 """
 
 import requests
@@ -13,19 +8,11 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import urllib3
-from datetime import timedelta
-
-
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ------------------------------------------------------------------
-# Coordenadas por defecto (Institución Universitaria Pascual Bravo)
-# Se usan solo si la API no trae la latitud/longitud de la estación.
-# ------------------------------------------------------------------
-LAT_DEFECTO = 6.542
-LON_DEFECTO = -75.1576
-
+LAT_DEFECTO = 6.2766
+LON_DEFECTO = -75.5901
 API_BASE_URL = "https://marco.cornare.gov.co/api/v1/estaciones"
 
 LLAVE_FECHA = "level_date"
@@ -35,17 +22,13 @@ CANDIDATOS_LON = ["lng", "lon", "longitude", "longitud"]
 
 st.set_page_config(page_title="Nivel de estación — CORNARE", page_icon="🌊", layout="wide")
 
-
 # ------------------------------------------------------------------
-# Funciones de consulta
+# Funciones
 # ------------------------------------------------------------------
 def obtener_serie_nivel(codigo_estacion, desde, hasta, calidad=1, timeout=30):
     url = f"{API_BASE_URL}/{codigo_estacion}/nivel"
     params = {"desde": desde, "hasta": hasta, "calidad": calidad}
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-    }
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=timeout, verify=False)
         if resp.status_code == 200:
@@ -53,7 +36,6 @@ def obtener_serie_nivel(codigo_estacion, desde, hasta, calidad=1, timeout=30):
         return None, f"HTTP {resp.status_code}"
     except requests.exceptions.RequestException as e:
         return None, f"Error de red: {e}"
-
 
 def obtener_todas_las_paginas(datos_json, timeout=30):
     registros = list(datos_json.get("values", []))
@@ -69,42 +51,12 @@ def obtener_todas_las_paginas(datos_json, timeout=30):
         registros.extend(pagina.get("values", []))
         siguiente_url = pagina.get("next")
     return registros
-    
-# --- Nueva función para obtener serie de un mes antes ---
-def obtener_serie_mes_anterior(codigo_estacion, fecha_desde, fecha_hasta, calidad=1, timeout=30):
-  
-    fecha_desde_dt = pd.to_datetime(fecha_desde)
-    fecha_hasta_dt = pd.to_datetime(fecha_hasta)
-
-    # Restar un mes (30 días aprox)
-    fecha_desde_ant = (fecha_desde_dt - timedelta(days=30)).strftime("%Y-%m-%d")
-    fecha_hasta_ant = (fecha_hasta_dt - timedelta(days=30)).strftime("%Y-%m-%d")
-
-    # Consultar API
-    datos_ant, error_ant = obtener_serie_nivel(codigo_estacion, fecha_desde_ant, fecha_hasta_ant, calidad, timeout)
-    if error_ant:
-        return None, error_ant
-
-    registros_ant = obtener_todas_las_paginas(datos_ant)
-    if not registros_ant:
-        return None, "No hay registros para el mes anterior."
-
-    df_ant = pd.DataFrame(registros_ant)
-    df_ant = df_ant.rename(columns={LLAVE_FECHA: "fecha", LLAVE_VALOR: "nivel"})
-    df_ant["fecha"] = pd.to_datetime(df_ant["fecha"], errors="coerce")
-    df_ant["nivel"] = pd.to_numeric(df_ant["nivel"], errors="coerce")
-    df_ant = df_ant.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
-
-    return df_ant, None
 
 def detectar_coordenadas(datos_json):
-    """Busca lat/lon en las llaves raíz de la respuesta. Si no las encuentra, usa el valor por defecto."""
     if not isinstance(datos_json, dict):
         return LAT_DEFECTO, LON_DEFECTO, False
-
     lat = next((datos_json[k] for k in CANDIDATOS_LAT if k in datos_json), None)
     lon = next((datos_json[k] for k in CANDIDATOS_LON if k in datos_json), None)
-
     if lat is not None and lon is not None:
         try:
             return float(lat), float(lon), True
@@ -112,121 +64,85 @@ def detectar_coordenadas(datos_json):
             pass
     return LAT_DEFECTO, LON_DEFECTO, False
 
-
 def calcular_indice_calidad(df):
-    """Índice simple (0-100) combinando completitud de la serie y proporción de outliers."""
     if df.empty or len(df) < 2:
         return 0.0, 0, 0
-
     df_idx = df.set_index("fecha")
     frecuencia_tipica = df["fecha"].diff().dropna().mode()
     if len(frecuencia_tipica) == 0:
         return 0.0, 0, 0
     frecuencia_tipica = frecuencia_tipica[0]
-
     rango_completo = pd.date_range(start=df_idx.index.min(), end=df_idx.index.max(), freq=frecuencia_tipica)
     esperados = len(rango_completo)
     huecos = esperados - len(df_idx)
     completitud = max(0.0, 1 - (huecos / esperados)) if esperados > 0 else 0.0
-
     Q1, Q3 = df["nivel"].quantile(0.25), df["nivel"].quantile(0.75)
     IQR = Q3 - Q1
     lim_inf, lim_sup = Q1 - 1.5 * IQR, Q3 + 1.5 * IQR
     es_outlier = (df["nivel"] < lim_inf) | (df["nivel"] > lim_sup) | (df["nivel"] < 0)
     proporcion_outliers = es_outlier.mean()
-
     indice = (completitud * 0.7 + (1 - proporcion_outliers) * 0.3) * 100
     return round(indice, 1), int(huecos), int(es_outlier.sum())
 
-
 # ------------------------------------------------------------------
-# Sidebar — parámetros de la consulta (editables por cada estudiante)
+# Sidebar — parámetros
 # ------------------------------------------------------------------
 st.sidebar.header("Parámetros de tu consulta")
-nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "David Santiago Sierra")
-codigo_estacion = st.sidebar.text_input("Código de estación", "42")
+nombre_estudiante = st.sidebar.text_input("Nombre del estudiante", "Tu Nombre Aquí")
+codigo_estacion = "42"  # fijo
 fecha_desde = st.sidebar.date_input("Desde", pd.to_datetime("2026-08-23")).strftime("%Y-%m-%d")
 fecha_hasta = st.sidebar.date_input("Hasta", pd.to_datetime("2026-08-30")).strftime("%Y-%m-%d")
-calidad = st.sidebar.selectbox("Calidad", [1, 0], index=0, help="1 = solo datos validados")
+calidad = st.sidebar.selectbox("Calidad", [1, 0], index=0)
 consultar = st.sidebar.button("🔍 Consultar", type="primary")
 
 st.title("🌊 Santo Domingo, Quebrada Santiago  (Red Agua - Cód. 42)")
-st.caption(f"Estudiante: **{nombre_estudiante}** · Estación: **{codigo_estacion}**")
+st.caption(f"Estudiante: **{nombre_estudiante}** · Estación fija: **{codigo_estacion}**")
 
 # ------------------------------------------------------------------
-# Consulta y procesamiento
+# Consulta y Tabs
 # ------------------------------------------------------------------
 if consultar:
- 
-    with st.spinner("Consultando la API..."):
-        datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
-
+    datos_crudos, error = obtener_serie_nivel(codigo_estacion, fecha_desde, fecha_hasta, calidad)
     if error:
         st.error(f"❌ {error}")
     else:
         registros = obtener_todas_las_paginas(datos_crudos)
-
         if not registros:
-            st.warning("No hay registros para esta estación y rango de fechas. Prueba otro código u otro rango.")
+            st.warning("No hay registros para este rango de fechas.")
         else:
             df = pd.DataFrame(registros)
             df = df.rename(columns={LLAVE_FECHA: "fecha", LLAVE_VALOR: "nivel"})
             df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
             df["nivel"] = pd.to_numeric(df["nivel"], errors="coerce")
             df = df.dropna(subset=["fecha", "nivel"]).sort_values("fecha").reset_index(drop=True)
-               # --- Gráfico de comparación ---
-            st.subheader("Comparación con un mes antes")
-            
-            df_ant, error_ant = obtener_serie_mes_anterior(codigo_estacion, fecha_desde, fecha_hasta, calidad)
-            if error_ant: 
-                st.warning(f"⚠️ {error_ant}")
-            else:
-                # Unir ambas series con etiquetas
-                df_actual = df.copy()
-                df_actual["serie"] = "Actual"
-                df_ant["serie"] = "Mes anterior"
-            
-                df_comp = pd.concat([df_actual, df_ant])
-            
-                # Pivot para graficar ambas series
-                df_plot = df_comp.pivot(index="fecha", columns="serie", values="nivel")
-                st.line_chart(df_plot)
-            
-                # --- Métricas comparativas ---
-                colA, colB = st.columns(2)
-                colA.metric("Promedio actual", f"{df_actual['nivel'].mean():.2f}")
-                colB.metric("Promedio mes anterior", f"{df_ant['nivel'].mean():.2f}")
-
 
             lat, lon, coords_reales = detectar_coordenadas(datos_crudos)
             indice_calidad, huecos, n_outliers = calcular_indice_calidad(df)
 
-            # --- Métricas principales ---
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Lecturas", len(df))
-            col2.metric("Nivel promedio", f"{df['nivel'].mean():.2f}")
-            col3.metric("Índice de calidad", f"{indice_calidad} / 100")
-            col4.metric("Outliers detectados", n_outliers)
+            tab1, tab2, tab3 = st.tabs(["📊 Métricas", "📈 Gráficos", "🗺️ Mapa y tablas"])
 
-            # --- Gráfico de la serie ---
-            st.subheader("Serie de nivel")
-            st.line_chart(df.set_index("fecha")["nivel"])
+            with tab1:
+                st.subheader("Métricas principales")
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Lecturas", len(df))
+                col2.metric("Nivel promedio", f"{df['nivel'].mean():.2f}")
+                col3.metric("Índice de calidad", f"{indice_calidad} / 100")
+                col4.metric("Outliers detectados", n_outliers)
 
-            # --- Mapa de la estación ---
-            # --- Detalle de calidad ---
-            with st.expander("Detalle del índice de calidad"):
-                st.write(f"- Huecos de reporte detectados: **{huecos}**")
-                st.write(f"- Outliers (IQR + nivel negativo): **{n_outliers}** de {len(df)} lecturas")
-                st.write("El índice combina completitud de la serie (70%) y proporción de datos sin outliers (30%).")
+                st.subheader("Tabla comparativa por día")
+                df["fecha_dia"] = df["fecha"].dt.date
+                tabla_comparativa = df.groupby("fecha_dia")["nivel"].agg(["mean","max","min"])
+                st.dataframe(tabla_comparativa)
 
-            # --- Tabla y descarga ---
-            with st.expander("Ver datos crudos"):
-                st.dataframe(df, use_container_width=True)
+            with tab2:
+                st.subheader("Serie de nivel")
+                tipo_grafico = st.radio("Tipo de gráfico", ["Línea", "Barras"], horizontal=True)
+                if tipo_grafico == "Línea":
+                    st.line_chart(df.set_index("fecha")["nivel"])
+                else:
+                    st.bar_chart(df.set_index("fecha")["nivel"])
 
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Descargar CSV", csv, file_name=f"nivel_estacion_{codigo_estacion}.csv", mime="text/csv")
-else:
-    st.info("Ajusta los parámetros en el sidebar y presiona **Consultar**.")
-
-
-           
+            with tab3:
+                st.subheader("Ubicación de la estación")
+                if not coords_reales:
+                    st.caption("La API no trajo lat/lon — se muestra Pascual Bravo.")
